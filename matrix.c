@@ -14,6 +14,7 @@ typedef struct point {
 	int value;
 	int on;
 	int highlight;
+	int sparkled;
 	uint64_t ticks;
 } point_t;
 
@@ -29,6 +30,7 @@ uint64_t ticks = 0;
 int matrix_mode;
 FILE *gfp;
 int offsets[N_COLS];
+int sparkle;
 
 int select_character(int value)
 {
@@ -197,8 +199,14 @@ void matrix_shower(void)
 		} else {
 			for(i = 0; i < N_ROWS; i++) {
 				for(j = 0; j < N_COLS; j++) {
-					if(prob(0.5)) {
+					if(prob(0.2)) {
 						screen[i][j].value++;
+					}
+					if((sparkle && prob(1)) ||
+					   (screen[i][j].sparkled && prob(10))) {
+						/* Sparkle */
+						screen[i][j].highlight ^= 1;
+						screen[i][j].sparkled = 1;
 					}
 				}
 			}
@@ -214,7 +222,7 @@ int main(int argc, char *argv[])
 	char *filename;
 
 	matrix_mode = MODE_NUMBERS;
-	while((opt = getopt(argc, argv, "nf:")) != -1) {
+	while((opt = getopt(argc, argv, "snf:")) != -1) {
 		switch(opt) {
 		case 'n':
 			matrix_mode = MODE_NUMBERS;
@@ -223,8 +231,11 @@ int main(int argc, char *argv[])
 			matrix_mode = MODE_FILE;
 			filename = (char *)optarg;
 			break;
+		case 's':
+			sparkle = 1;
+			break;
 		default:
-			printf("Usage: %s -n -f [Filename]\n", argv[0]);
+			printf("Usage: %s -n -f [Filename] -s\n", argv[0]);
 			return 0;
 		}
 	}
