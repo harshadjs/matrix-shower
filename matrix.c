@@ -19,54 +19,54 @@ typedef struct point {
 
 #define N_ROWS 28
 #define N_COLS 51
-#define BOUND(__value) (((__value) >= N_COLS) ? (N_COLS - 1) : (__value))
+#define BOUND(__value) (((__value) >= N_ROWS) ? (N_ROWS - 1) : (__value))
 
 #define MODE_NUMBERS 0
 #define MODE_FILE 1
 
 point_t screen[N_ROWS][N_COLS] = {0};
 uint64_t ticks = 0;
-int mode;
+int matrix_mode;
 FILE *gfp;
+int offsets[N_COLS];
 
 int select_character(int value)
 {
-	int start = '1';
-	int end = '9';
+	int start = '.';
+	int end = '.' + 1;
 
-	if(isalnum(value))
+	if(isgraph(value))
 		return value;
 	else
 		return start + (value % (end - start));
 }
 
-int set_value(void)
+int set_value(int column)
 {
 	int ch;
 
-	if(mode == MODE_FILE) {
+	if(matrix_mode == MODE_FILE) {
+		fseek(gfp, offsets[column % N_COLS], SEEK_SET);
+
 		ch = fgetc(gfp);
+		offsets[column]++;
+
 		if(ch == EOF) {
 			fseek(gfp, 0, SEEK_SET);
+			offsets[column] = 0;
 		}
-		while(isspace(ch)) {
-			if(ch == EOF) {
-				exit(0);
-				fseek(gfp, 0, SEEK_SET);
-			}
-			ch = fgetc(gfp);
-		}
+
 		return ch;
 	} else {
 		return '1' + (random() % 9);
 	}
 }
 
-int prob(int percentage)
+int prob(float percentage)
 {
-	int num = random() % 100;
+	int num = random() % 10000;
 
-	if(num < percentage)
+	if(num < 100*(percentage))
 		return 1;
 
 	return 0;
@@ -137,7 +137,7 @@ void handle_column(int column)
 
 //			i = 0;
 			screen[i][column].on = 1;
-			screen[i][column].value = set_value();
+			screen[i][column].value = set_value(column);
 			screen[i][column].ticks = ticks;
 			if(prob(30))
 				screen[i][column].highlight = 1;
@@ -147,7 +147,7 @@ void handle_column(int column)
 
 	for(i = 0; i < n_streaks; i++) {
 		if((ticks - screen[streaks[i]][column].ticks) <= 5) {
-				int collision = 0;
+			int collision = 0;
 			if(prob(10)) {
 				/* Turn off this streak */
 				continue;
@@ -165,7 +165,7 @@ void handle_column(int column)
 			}
 			if(!collision) {
 				screen[BOUND(streaks[i] + lengths[i])][column].on = 1;
-				screen[BOUND(streaks[i] + lengths[i])][column].value = set_value();
+				screen[BOUND(streaks[i] + lengths[i])][column].value = set_value(column);
 				screen[BOUND(streaks[i] + lengths[i])][column].ticks = ticks;
 				if(BOUND(j + streaks[i]) - 1 >= 0) {
 					if(screen[BOUND(j + streaks[i]) - 1][column].highlight) {
@@ -197,7 +197,7 @@ void matrix_shower(void)
 		} else {
 			for(i = 0; i < N_ROWS; i++) {
 				for(j = 0; j < N_COLS; j++) {
-					if(prob(10)) {
+					if(prob(0.5)) {
 						screen[i][j].value++;
 					}
 				}
@@ -210,17 +210,17 @@ void matrix_shower(void)
 
 int main(int argc, char *argv[])
 {
-	int opt;
+	int i, opt;
 	char *filename;
 
-	mode = MODE_NUMBERS;
+	matrix_mode = MODE_NUMBERS;
 	while((opt = getopt(argc, argv, "nf:")) != -1) {
 		switch(opt) {
 		case 'n':
-			mode = MODE_NUMBERS;
+			matrix_mode = MODE_NUMBERS;
 			break;
 		case 'f':
-			mode = MODE_FILE;
+			matrix_mode = MODE_FILE;
 			filename = (char *)optarg;
 			break;
 		default:
@@ -228,13 +228,17 @@ int main(int argc, char *argv[])
 			return 0;
 		}
 	}
-	if(mode == MODE_FILE) {
+	if(matrix_mode == MODE_FILE) {
 		gfp = fopen(filename, "r+");
 		if(!gfp)
-			mode = MODE_NUMBERS;
+			matrix_mode = MODE_NUMBERS;
 	}
 
 	setlocale(LC_ALL, "");
+	for(i = 0; i < N_COLS; i++) {
+		offsets[i] = i*10;
+	}
+
 	matrix_shower();
 	return 0;
 }
